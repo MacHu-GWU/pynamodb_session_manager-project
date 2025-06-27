@@ -27,8 +27,8 @@ if T.TYPE_CHECKING:  # pragma: no cover
 
 @contextlib.contextmanager
 def use_boto_session(
-    bsm: "BotoSesManager",
     table: T.Type["Model"],
+    bsm: T.Optional["BotoSesManager"] = None,
     restore_on_exit: bool = True,
 ):
     """
@@ -38,10 +38,12 @@ def use_boto_session(
     credentials by leveraging the boto-session-manager's awscli() context manager
     and manipulating the model's connection and region settings.
 
-    :param bsm: The boto session manager instance containing the
-        target AWS credentials/profile to use.
-        See https://pypi.org/project/boto-session-manager/
     :param table: The PynamoDB model class that will use the new credentials.
+    :param bsm: The boto session manager instance containing the
+        target AWS credentials/profile to use. If None, the context manager
+        has no effect, providing a clean API where users can conditionally
+        switch credentials without separate if/else logic.
+        See https://pypi.org/project/boto-session-manager/
     :param restore_on_exit: If True, restore original connection on exit
         if False, keep current connection for subsequent operations.
         See also :func:`reset_connection`.
@@ -89,23 +91,27 @@ def use_boto_session(
     # Store the current region setting to restore it later
     current_aws_region = table.Meta.region
     try:
-        # Enter the boto session manager's context
-        # This typically sets AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc. as env vars
-        with bsm.awscli():
-            # Clear the existing connection to force PynamoDB to create a new one
-            # with the current environment variables (which are now set by bsm.awscli())
-            table._connection = None
-            # Update the model's region to match the session manager's region
-            # This ensures consistency between the session and the model configuration
-            table.Meta.region = bsm.aws_region
-            # Create a new connection object with the new region
-            # This connection will inherit the AWS credentials from environment variables
-            Connection(region=bsm.aws_region)
-            # Yield control back to the caller
-            # All PynamoDB operations within this context will use the new credentials
+        if bsm is None:
+            # if BotoSesManager is not provided, we do nothing
             yield None
+        else:
+            # Enter the boto session manager's context
+            # This typically sets AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, etc. as env vars
+            with bsm.awscli():
+                # Clear the existing connection to force PynamoDB to create a new one
+                # with the current environment variables (which are now set by bsm.awscli())
+                table._connection = None
+                # Update the model's region to match the session manager's region
+                # This ensures consistency between the session and the model configuration
+                table.Meta.region = bsm.aws_region
+                # Create a new connection object with the new region
+                # This connection will inherit the AWS credentials from environment variables
+                Connection(region=bsm.aws_region)
+                # Yield control back to the caller
+                # All PynamoDB operations within this context will use the new credentials
+                yield None
     finally:
-        if restore_on_exit:
+        if restore_on_exit and (bsm is not None):
             # Cleanup: Restore the original state regardless of success or failure
             # Clear the connection again to ensure clean state
             table._connection = None

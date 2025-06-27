@@ -50,16 +50,16 @@ def test_this_boto_session_manager():
         id: str = UnicodeAttribute(hash_key=True)
 
     # Ensure the table does not exist before starting the demo
-    with use_boto_session(default_bsm, User):
+    with use_boto_session(User, default_bsm):
         if User.exists():
             User.delete_table(wait=True)
-    with use_boto_session(project_bsm, User):
+    with use_boto_session(User, project_bsm):
         if User.exists():
             User.delete_table(wait=True)
 
     # Example 1: Create table in the target account
     print("=== Creating table in target account ===")
-    with use_boto_session(project_bsm, User):
+    with use_boto_session(User, project_bsm):
         # This will create the table in the project AWS account
         # because we're using project_bsm credentials within the context
         User.create_table(wait=True)
@@ -86,8 +86,8 @@ def test_this_boto_session_manager():
     # Example 3: Insert item in target account
     print("\n=== Inserting item in target account ===")
     with use_boto_session(
-        project_bsm,
         User,
+        project_bsm,
         restore_on_exit=False,  # Keep the connection to the target account
     ):
         # This will insert item to the table in the project AWS account
@@ -129,11 +129,11 @@ def test_this_boto_session_manager():
     # Example 6: Copy data from target account to default account
     print("\n=== Copying data from target account to default account ===")
     # We get data from the project account
-    with use_boto_session(project_bsm, User):
+    with use_boto_session(User, project_bsm):
         users = list(User.scan())
 
     # Now we switch to the default account, create the table and save the data
-    with use_boto_session(default_bsm, User):
+    with use_boto_session(User, default_bsm):
         User.create_table(wait=True)
         with User.batch_write() as batch:
             for user in users:
@@ -148,9 +148,9 @@ def test_this_boto_session_manager():
     assert item["id"]["S"] == project_bsm.aws_account_id
 
     # Clean up
-    with use_boto_session(default_bsm, User):
+    with use_boto_session(User, default_bsm):
         User.delete_table(wait=True)
-    with use_boto_session(project_bsm, User):
+    with use_boto_session(User, project_bsm):
         User.delete_table(wait=True)
 
     print("\n=== Demo completed ===")

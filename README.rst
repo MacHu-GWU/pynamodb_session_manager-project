@@ -84,7 +84,7 @@ The ``use_boto_session`` context manager temporarily stores the current ORM clas
     target_bsm = BotoSesManager(profile_name="target_profile")
 
     # Use different credentials temporarily
-    with use_boto_session(target_bsm, User):
+    with use_boto_session(User, target_bsm):
         # All operations here use target_profile credentials
         User.create_table(wait=True)
         user = User(id="123")
@@ -104,7 +104,7 @@ The ``use_boto_session`` context manager temporarily stores the current ORM clas
     from pynamodb_session_manager import reset_connection
 
     # Keep connection after context exits
-    with use_boto_session(target_bsm, User, restore_on_exit=False):
+    with use_boto_session(User, target_bsm, restore_on_exit=False):
         user = User(id="456")
         user.save()
     
@@ -124,14 +124,14 @@ The ``use_boto_session`` context manager temporarily stores the current ORM clas
     prod_bsm = BotoSesManager(profile_name="production")
 
     # Create table in staging
-    with use_boto_session(staging_bsm, User):
+    with use_boto_session(User, staging_bsm):
         User.create_table(wait=True)
     
     # Copy data from staging to production
-    with use_boto_session(staging_bsm, User):
+    with use_boto_session(User, staging_bsm):
         staging_users = list(User.scan())
     
-    with use_boto_session(prod_bsm, User):
+    with use_boto_session(User, prod_bsm):
         User.create_table(wait=True)
         for user in staging_users:
             user.save()
