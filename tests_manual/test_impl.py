@@ -3,7 +3,7 @@
 import pytest
 
 import botocore.exceptions
-from pynamodb_session_manager.impl import this_boto_session_manager, reset_connection
+from pynamodb_session_manager.impl import use_boto_session, reset_connection
 
 from pynamodb.models import Model
 from pynamodb.attributes import UnicodeAttribute
@@ -26,7 +26,8 @@ def test_this_boto_session_manager():
 
     # THE TARGET AWS PROFILE YOU WANT TO USE (specific profile from ~/.aws/credentials)
     project_bsm = BotoSesManager(
-        profile_name="bmt_app_dev_us_east_1", region_name=aws_region
+        profile_name="bmt_app_dev_us_east_1",
+        region_name=aws_region,
     )
     print(f"project aws account: {project_bsm.aws_account_id = }")
 
@@ -50,7 +51,7 @@ def test_this_boto_session_manager():
 
     # Example 1: Create table in the target account
     print("=== Creating table in target account ===")
-    with this_boto_session_manager(project_bsm, User):
+    with use_boto_session(project_bsm, User):
         # This will create the table in the project AWS account
         # because we're using project_bsm credentials within the context
         User.create_table(wait=True)
@@ -72,10 +73,10 @@ def test_this_boto_session_manager():
 
     # Example 3: Insert item in target account
     print("\n=== Inserting item in target account ===")
-    with this_boto_session_manager(
+    with use_boto_session(
         project_bsm,
         User,
-        restore_connection=False,  # Keep the connection to the target account
+        restore_on_exit=False,  # Keep the connection to the target account
     ):
         # This will insert item to the table in the project AWS account
         # because we're using project_bsm credentials within the context

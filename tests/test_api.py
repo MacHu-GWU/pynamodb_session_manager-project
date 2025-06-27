@@ -5,6 +5,8 @@ from pynamodb_session_manager import api
 
 def test():
     _ = api
+    _ = api.use_boto_session
+    _ = api.reset_connection
 
 
 if __name__ == "__main__":

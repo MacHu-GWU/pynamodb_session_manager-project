@@ -11,14 +11,6 @@ This is particularly useful for:
 - Different AWS profiles for different environments
 - Temporary credential switching
 - Cross-account DynamoDB operations
-
-Dependencies:
-
-- pynamodb
-- `boto-session-manager <https://pypi.org/project/boto-session-manager/>`_
-
-Author: Sanhe Hu
-Date: 2026-06-26
 """
 
 import typing as T
@@ -34,10 +26,10 @@ if T.TYPE_CHECKING:  # pragma: no cover
 
 
 @contextlib.contextmanager
-def this_boto_session_manager(
+def use_boto_session(
     bsm: "BotoSesManager",
     table: T.Type["Model"],
-    restore_connection: bool = True,
+    restore_on_exit: bool = True,
 ):
     """
     Context manager to temporarily switch PynamoDB model to use different AWS credentials.
@@ -46,15 +38,15 @@ def this_boto_session_manager(
     credentials by leveraging the boto-session-manager's awscli() context manager
     and manipulating the model's connection and region settings.
 
-    Args:
-        bsm: The boto session manager instance containing the
-            target AWS credentials/profile to use
-        table: The PynamoDB model class that will use the new credentials
-        restore_connection: If True, restore original connection on exit;
-            if False, keep current connection for subsequent operations.
+    :param bsm: The boto session manager instance containing the
+        target AWS credentials/profile to use.
+        See https://pypi.org/project/boto-session-manager/
+    :param table: The PynamoDB model class that will use the new credentials.
+    :param restore_on_exit: If True, restore original connection on exit
+        if False, keep current connection for subsequent operations.
+        See also :func:`reset_connection`.
 
-    Yields:
-        None: This is a context manager that doesn't return a value
+    :yields: None, This is a context manager that doesn't return a value
 
     Usage::
 
@@ -92,7 +84,7 @@ def this_boto_session_manager(
         - The model's _connection attribute is set to None to force PynamoDB
             to create a new connection with the current environment variables
         - The region is temporarily changed to ensure consistency with the session
-        - All changes are reverted when exiting the context manager
+        - All changes are reverted when exiting the context manager when restore_on_exit is True
     """
     # Store the current region setting to restore it later
     current_aws_region = table.Meta.region
@@ -113,7 +105,7 @@ def this_boto_session_manager(
             # All PynamoDB operations within this context will use the new credentials
             yield None
     finally:
-        if restore_connection:
+        if restore_on_exit:
             # Cleanup: Restore the original state regardless of success or failure
             # Clear the connection again to ensure clean state
             table._connection = None
@@ -132,11 +124,23 @@ def reset_connection(
     Reset the PynamoDB model's connection to use the default AWS connection.
 
     This is useful when you have changed AWS credentials using
-    :func:`this_boto_session_manager` context manager, and then want to revert back
+    :func:`use_boto_session` context manager, and then want to revert back
     to the default PynamoDB behavior.
 
-    Args:
-        table: The PynamoDB model class whose connection should be reset.
+    :param table: The PynamoDB model class whose connection should be reset.
+
+    Usage::
+
+        # Define your model
+        class MyModel(Model):
+            ...
+
+        # Use different credentials and keep the connection
+        with use_boto_session(target_bsm, MyModel, restore_on_exit=False):
+            ...
+
+        # Reset the connection to use the default AWS credentials
+        reset_connection(MyModel)
     """
     # Clear the existing connection then make an test API call to force
     # PynamoDB to create a new one

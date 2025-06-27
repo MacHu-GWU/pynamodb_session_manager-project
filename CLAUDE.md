@@ -4,7 +4,7 @@ See @README.rst for project overview
 
 Code Structure
 
-- Source Code: versioned/**/*.py
+- Source Code: pynamodb_session_manager/**/*.py
 - Unit test: tests/**/*.py
 - Documentation: docs/source/**/*.index
 
