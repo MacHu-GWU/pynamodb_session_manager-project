@@ -117,6 +117,11 @@ def test_this_boto_session_manager():
         f"Retrieved user from account {project_bsm.aws_account_id}: {user.attribute_values}"
     )
 
+    # When bsm is not provided, it will use the current default session
+    with use_boto_session(User, None):
+        user = User.get(project_bsm.aws_account_id)
+        assert user.id == project_bsm.aws_account_id
+
     # Example 5: Reset connection to default account
     print("\n=== Resetting connection to default account ===")
     reset_connection(User)
