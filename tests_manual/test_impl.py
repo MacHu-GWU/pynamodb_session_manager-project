@@ -49,12 +49,24 @@ def test_this_boto_session_manager():
 
         id: str = UnicodeAttribute(hash_key=True)
 
+    # Ensure the table does not exist before starting the demo
+    with use_boto_session(default_bsm, User):
+        if User.exists():
+            User.delete_table(wait=True)
+    with use_boto_session(project_bsm, User):
+        if User.exists():
+            User.delete_table(wait=True)
+
     # Example 1: Create table in the target account
     print("=== Creating table in target account ===")
     with use_boto_session(project_bsm, User):
         # This will create the table in the project AWS account
         # because we're using project_bsm credentials within the context
         User.create_table(wait=True)
+        # clear all the data to have a clean start
+        with User.batch_write() as batch:
+            for user in User.scan():
+                batch.delete(user)
 
     try:
         project_bsm.dynamodb_client.describe_table(TableName=dynamodb_table_name)
@@ -86,6 +98,7 @@ def test_this_boto_session_manager():
             f"User with ID={project_bsm.aws_account_id} saved to account: {project_bsm.aws_account_id}"
         )
 
+    # Let's verify using the boto3 API directly
     res = project_bsm.dynamodb_client.get_item(
         TableName=dynamodb_table_name,
         Key={"id": {"S": project_bsm.aws_account_id}},
@@ -112,6 +125,33 @@ def test_this_boto_session_manager():
     with pytest.raises(Exception) as e:
         user = User(id=default_bsm.aws_account_id)
         user.save()
+
+    # Example 6: Copy data from target account to default account
+    print("\n=== Copying data from target account to default account ===")
+    # We get data from the project account
+    with use_boto_session(project_bsm, User):
+        users = list(User.scan())
+
+    # Now we switch to the default account, create the table and save the data
+    with use_boto_session(default_bsm, User):
+        User.create_table(wait=True)
+        with User.batch_write() as batch:
+            for user in users:
+                batch.save(user)
+
+    # Let's verify using the boto3 API directly
+    res = default_bsm.dynamodb_client.get_item(
+        TableName=dynamodb_table_name,
+        Key={"id": {"S": project_bsm.aws_account_id}},
+    )
+    item = res["Item"]
+    assert item["id"]["S"] == project_bsm.aws_account_id
+
+    # Clean up
+    with use_boto_session(default_bsm, User):
+        User.delete_table(wait=True)
+    with use_boto_session(project_bsm, User):
+        User.delete_table(wait=True)
 
     print("\n=== Demo completed ===")
 

@@ -50,7 +50,93 @@ Welcome to ``pynamodb_session_manager`` Documentation
 .. image:: https://pynamodb-session-manager.readthedocs.io/en/latest/_static/pynamodb_session_manager-logo.png
     :target: https://pynamodb-session-manager.readthedocs.io/en/latest/
 
-Documentation for ``pynamodb_session_manager``.
+``pynamodb_session_manager`` enables PynamoDB models to dynamically switch AWS credentials at runtime without modifying model definitions.
+
+**Problem Background**
+
+PynamoDB 6.0.0+ allows setting table-level connections by explicitly providing credentials, but this approach is not flexible or elegant for dynamic credential switching. Each PynamoDB model stores AWS session information in a ``_connection`` attribute. When you first use an ORM class to send a DynamoDB request, PynamoDB checks the model's ``Meta`` class for AWS credentials. If none are found, it uses the default AWS profile and creates a connection stored in ``_connection``, and then use it for all subsequent requests. This means that once a model's connection is established, it cannot be changed without modifying the model's definition or using a different model class.
+
+As the author of `boto-session-manager <https://pypi.org/project/boto-session-manager/>`_, an advanced boto3 session manager that can temporarily change the "Default AWS Profile" using context managers, I created this library to solve PynamoDB's dynamic credential switching limitation.
+
+**How It Works**
+
+The ``use_boto_session`` context manager temporarily stores the current ORM class configuration, resets the ``_connection`` using the provided boto session manager, and conditionally reverts it back (depending on ``restore_on_exit`` parameter).
+
+**Quick Start**
+
+.. code-block:: python
+
+    from pynamodb.models import Model
+    from pynamodb.attributes import UnicodeAttribute
+    from boto_session_manager import BotoSesManager
+
+    from pynamodb_session_manager import use_boto_session
+
+    # Define your PynamoDB model
+    class User(Model):
+        class Meta:
+            table_name = "users"
+            region = "us-east-1"
+        
+        id = UnicodeAttribute(hash_key=True)
+
+    # Create session manager for different AWS account/profile
+    target_bsm = BotoSesManager(profile_name="target_profile")
+
+    # Use different credentials temporarily
+    with use_boto_session(target_bsm, User):
+        # All operations here use target_profile credentials
+        User.create_table(wait=True)
+        user = User(id="123")
+        user.save()
+
+    # Back to default credentials
+    # This will fail if table doesn't exist in default account
+    try:
+        user = User.get("123")  # Uses default credentials
+    except Exception:
+        print("Table not found in default account")
+
+**Advanced Usage**
+
+.. code-block:: python
+
+    from pynamodb_session_manager import reset_connection
+
+    # Keep connection after context exits
+    with use_boto_session(target_bsm, User, restore_on_exit=False):
+        user = User(id="456")
+        user.save()
+    
+    # Connection still uses target_profile
+    user = User.get("456")  # Still uses target_profile
+    
+    # Manually reset to default credentials
+    reset_connection(User)
+    # Now uses default credentials again
+
+**Multiple Account Operations**
+
+.. code-block:: python
+
+    default_bsm = BotoSesManager()  # Default profile
+    staging_bsm = BotoSesManager(profile_name="staging")
+    prod_bsm = BotoSesManager(profile_name="production")
+
+    # Create table in staging
+    with use_boto_session(staging_bsm, User):
+        User.create_table(wait=True)
+    
+    # Copy data from staging to production
+    with use_boto_session(staging_bsm, User):
+        staging_users = list(User.scan())
+    
+    with use_boto_session(prod_bsm, User):
+        User.create_table(wait=True)
+        for user in staging_users:
+            user.save()
+
+For comprehensive examples and advanced usage patterns, see the `complete test suite <https://github.com/MacHu-GWU/pynamodb_session_manager-project/blob/main/tests_manual/test_impl.py>`_.
 
 
 .. _install:
