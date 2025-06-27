@@ -15,6 +15,9 @@ x.y.z (Backlog)
 **Miscellaneous**
 
 
-0.1.1 (1970-01-01)
+0.1.1 (2025-06-27)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 - First release
+- Add the following public APIs:
+    - ``pynamodb_session_manager.api.use_boto_session``
+    - ``pynamodb_session_manager.api.reset_connection``
